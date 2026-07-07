@@ -1,0 +1,25 @@
+{
+  "name": "RoadPulse Dark",
+  "dataColors": ["#22D3EE", "#F5615C", "#3DDC8F", "#F5B942", "#9096A8", "#4A7FE8", "#B983FF", "#5FD4D4"],
+  "background": "#14151A",
+  "foreground": "#F5F6FA",
+  "tableAccent": "#22D3EE",
+  "visualStyles": {
+    "page": {
+      "*": {
+        "background": [{ "color": { "solid": { "color": "#14151A" } }, "transparency": 0 }]
+      }
+    },
+    "*": {
+      "*": {
+        "background": [{ "show": true, "color": { "solid": { "color": "#1C1E26" } }, "transparency": 0 }]
+      }
+    },
+    "cardVisual": {
+      "*": {
+        "value": [{ "fontColor": { "solid": { "color": "#22D3EE" } }, "fontSize": 28, "$id": "default" }],
+        "categoryLabel": [{ "fontColor": { "solid": { "color": "#9096A8" } }, "fontSize": 12, "$id": "default" }]
+      }
+    }
+  }
+}
