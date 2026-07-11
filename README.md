@@ -71,6 +71,14 @@ python app.py
 
 The raw file is ignored by Git. The pipeline reads it in chunks and writes reusable aggregate Parquet files to `data/processed/`.
 
+### Kaggle route when the raw file is too large to transfer
+
+Run `notebooks/kaggle_export_cell.py` as the final cell of the existing Kaggle
+notebook. It uses the already-loaded cleaned `df` and produces
+`/kaggle/working/roadpulse_processed.zip`. Download that small ZIP, extract its
+files into `data/processed/`, and start the dashboard. No raw-data upload is
+required.
+
 ## Structure
 
 ```text
