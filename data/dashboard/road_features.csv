@@ -1,0 +1,15 @@
+Present,Total_Accidents,Severe_Accidents,Feature
+False,6584622,1395288,Traffic_Signal
+True,1143772,108759,Traffic_Signal
+False,7157052,1350971,Junction
+True,571342,153076,Junction
+False,6854631,1442521,Crossing
+True,873763,61526,Crossing
+False,7514023,1490709,Stop
+True,214371,13338,Stop
+False,7728145,1504036,Roundabout
+True,249,11,Roundabout
+False,7708849,1501843,No_Exit
+True,19545,2204,No_Exit
+False,7661415,1493913,Railway
+True,66979,10134,Railway
