@@ -1,0 +1,41 @@
+Weather_Category,Visibility_Band,Total_Accidents,Severe_Accidents
+Clear,1-3mi (Poor),2207,566
+Clear,10mi+ (Clear),3169712,537693
+Clear,3-5mi (Reduced),14796,2193
+Clear,5-10mi (Good),217991,35239
+Clear,<1mi (Very Poor),510,79
+Cloudy,1-3mi (Poor),28608,8197
+Cloudy,10mi+ (Clear),2729814,591783
+Cloudy,3-5mi (Reduced),65477,13200
+Cloudy,5-10mi (Good),333251,70440
+Cloudy,<1mi (Very Poor),6600,1419
+Fog,1-3mi (Poor),56183,6892
+Fog,10mi+ (Clear),5057,863
+Fog,3-5mi (Reduced),24429,4430
+Fog,5-10mi (Good),48626,10468
+Fog,<1mi (Very Poor),55340,7838
+Other,1-3mi (Poor),6242,881
+Other,10mi+ (Clear),7470,1312
+Other,3-5mi (Reduced),5959,823
+Other,5-10mi (Good),9881,1331
+Other,<1mi (Very Poor),977,196
+Rain,1-3mi (Poor),100875,24943
+Rain,10mi+ (Clear),151952,32524
+Rain,3-5mi (Reduced),97337,24126
+Rain,5-10mi (Good),177836,41845
+Rain,<1mi (Very Poor),10878,2737
+Snow,1-3mi (Poor),65765,13041
+Snow,10mi+ (Clear),5056,1080
+Snow,3-5mi (Reduced),22975,4694
+Snow,5-10mi (Good),27715,5818
+Snow,<1mi (Very Poor),40126,7799
+Storm,1-3mi (Poor),9279,1729
+Storm,10mi+ (Clear),38020,6543
+Storm,3-5mi (Reduced),6206,1237
+Storm,5-10mi (Good),9372,1911
+Storm,<1mi (Very Poor),2413,453
+Unknown,1-3mi (Poor),328,95
+Unknown,10mi+ (Clear),171093,37208
+Unknown,3-5mi (Reduced),127,35
+Unknown,5-10mi (Good),1624,311
+Unknown,<1mi (Very Poor),287,75

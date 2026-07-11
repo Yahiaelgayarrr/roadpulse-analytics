@@ -1,0 +1,13 @@
+Sunrise_Sunset,Traffic_Signal,Visibility_Level,Total_Accidents,Severe_Accidents
+Day,False,High,4141503,893637
+Day,False,Low,348735,81413
+Day,True,High,794526,72942
+Day,True,Low,49789,4566
+Night,False,High,1870362,378266
+Night,False,Low,201662,39129
+Night,True,High,276814,28815
+Night,True,Low,21757,2316
+Unknown,False,High,20420,2596
+Unknown,False,Low,1940,247
+Unknown,True,High,845,113
+Unknown,True,Low,41,7

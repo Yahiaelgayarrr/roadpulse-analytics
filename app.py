@@ -1,75 +1,193 @@
-"""RoadPulse interactive dashboard (Dash + Plotly)."""
+"""RoadPulse interactive dashboard built from validated project aggregates."""
 from __future__ import annotations
 
+from pathlib import Path
+
 from dash import Dash, Input, Output, callback, dash_table, dcc, html
+import numpy as np
 import pandas as pd
 import plotly.express as px
 
-from roadpulse.config import DEMO_DIR, PROCESSED_DIR
-
-COLORS = {"bg": "#07111f", "panel": "#0e1b2d", "text": "#eef5ff", "muted": "#91a4be", "cyan": "#2dd4bf", "orange": "#fb923c", "red": "#fb7185"}
-
-
-def load_table(name: str) -> pd.DataFrame:
-    parquet = PROCESSED_DIR / f"{name}.parquet"
-    csv = DEMO_DIR / f"{name}.csv"
-    return pd.read_parquet(parquet) if parquet.exists() else pd.read_csv(csv)
+DATA = Path(__file__).parent / "data" / "dashboard"
+COLORS = {
+    "bg": "#07111f", "panel": "#0e1b2d", "text": "#eef5ff",
+    "muted": "#91a4be", "cyan": "#2dd4bf", "orange": "#fb923c",
+    "red": "#fb7185", "blue": "#60a5fa",
+}
+DAY_ORDER = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 
 
-yearly, states, counties, temporal, weather = (load_table(n) for n in ("yearly", "state", "county", "temporal", "weather"))
-IS_DEMO = not (PROCESSED_DIR / "yearly.parquet").exists()
-US_STATES = {"KS":"Kansas","MO":"Missouri","CT":"Connecticut","RI":"Rhode Island","GA":"Georgia","IA":"Iowa","MS":"Mississippi","KY":"Kentucky","WI":"Wisconsin","MD":"Maryland","TX":"Texas","PA":"Pennsylvania","LA":"Louisiana","DC":"District of Columbia","AZ":"Arizona","SC":"South Carolina","NE":"Nebraska","NC":"North Carolina","OK":"Oklahoma","DE":"Delaware"}
+def load(name: str) -> pd.DataFrame:
+    return pd.read_csv(DATA / name)
 
 
-def style(fig, title: str):
-    fig.update_layout(title=title, paper_bgcolor=COLORS["panel"], plot_bgcolor=COLORS["panel"], font_color=COLORS["text"], margin=dict(l=35,r=20,t=55,b=35), hoverlabel=dict(bgcolor="#172a42"), legend_title_text="")
-    fig.update_xaxes(gridcolor="#20334c", zeroline=False); fig.update_yaxes(gridcolor="#20334c", zeroline=False)
+def rate(frame: pd.DataFrame) -> pd.DataFrame:
+    result = frame.copy()
+    result["Severe_Rate"] = 100 * result["Severe_Accidents"] / result["Total_Accidents"]
+    return result
+
+
+trend = rate(load("state_trend_source2.csv"))
+states = rate(load("state_rank_source2.csv"))
+state_year = rate(load("state_summary.csv"))
+counties = rate(load("counties.csv"))
+temporal = rate(load("temporal.csv"))
+conditions = rate(load("conditions.csv"))
+road_features = rate(load("road_features.csv"))
+compound = rate(load("compound_risk.csv"))
+severity = load("severity_stats.csv")
+
+TOTAL = int(severity["Count"].sum())
+SEVERE = int(severity.loc[severity["Severity"].isin([3, 4]), "Count"].sum())
+
+
+def style(fig, title: str, subtitle: str | None = None):
+    fig.update_layout(
+        title={"text": title + (f"<br><sup>{subtitle}</sup>" if subtitle else "")},
+        paper_bgcolor=COLORS["panel"], plot_bgcolor=COLORS["panel"],
+        font_color=COLORS["text"], margin=dict(l=35, r=25, t=75, b=40),
+        hoverlabel=dict(bgcolor="#172a42"), legend_title_text="",
+    )
+    fig.update_xaxes(gridcolor="#20334c", zeroline=False)
+    fig.update_yaxes(gridcolor="#20334c", zeroline=False)
     return fig
 
 
 def card(label: str, value: str, note: str, accent: str = "cyan"):
-    return html.Div([html.P(label, className="kpi-label"), html.H2(value), html.P(note, className="kpi-note")], className=f"kpi {accent}")
+    return html.Div([
+        html.P(label, className="kpi-label"), html.H2(value),
+        html.P(note, className="kpi-note"),
+    ], className=f"kpi {accent}")
 
 
 app = Dash(__name__, title="RoadPulse | US Accident Intelligence", suppress_callback_exceptions=True)
 server = app.server
 app.layout = html.Div([
-    html.Header([html.Div([html.Span("ROAD", className="brand"), html.Span("PULSE", className="brand pulse")]), html.P("US Accident Intelligence • 2016–2023", className="subtitle")]),
-    html.Div("DEMO SNAPSHOT • Run the pipeline for the full dashboard. Geography and annual figures come from the completed notebook; temporal/weather panels are clearly marked illustrative." if IS_DEMO else "FULL PROCESSED DATA • Generated locally from the source dataset.", className="mode-banner"),
-    html.Div([html.Label("Comparable analytical source"), dcc.Dropdown(sorted(yearly.Source.unique()), "Source2", id="source", clearable=False), html.Label("Minimum observations"), dcc.Slider(100, 5000, 100, value=500, id="minimum", marks={100:"100",500:"500",2000:"2k",5000:"5k"}), html.Div("Why Source2? Source collection methods have radically different severity mixes. Source2 is used for apples-to-apples geographic and temporal comparisons.", className="callout")], className="controls"),
-    dcc.Tabs(id="tabs", value="overview", children=[dcc.Tab(label="Executive overview", value="overview"), dcc.Tab(label="Geographic priorities", value="geo"), dcc.Tab(label="Risk conditions", value="risk"), dcc.Tab(label="Data trust", value="trust")]),
-    html.Main(id="page")
+    html.Header([
+        html.Div([html.Span("ROAD", className="brand"), html.Span("PULSE", className="brand pulse")]),
+        html.P("US Accident Intelligence • 7.7M reported incidents", className="subtitle"),
+    ]),
+    html.Div("REAL AGGREGATED DATA • Generated from the complete US Accidents 2016–2023 dataset", className="mode-banner"),
+    html.Div([
+        html.Label("Minimum observations"),
+        dcc.Slider(100, 5000, 100, value=500, id="minimum", marks={100: "100", 500: "500", 2000: "2k", 5000: "5k"}),
+        html.Div("Comparable rankings and trends use Source2 only. Other analytical cuts combine sources and are labelled descriptive.", className="callout"),
+    ], className="controls compact"),
+    dcc.Tabs(id="tabs", value="overview", children=[
+        dcc.Tab(label="Executive overview", value="overview"),
+        dcc.Tab(label="Geographic priorities", value="geo"),
+        dcc.Tab(label="Time & conditions", value="conditions"),
+        dcc.Tab(label="Road & compound risk", value="roads"),
+        dcc.Tab(label="Data trust", value="trust"),
+    ]),
+    html.Main(id="page"),
 ], className="shell")
 
 
-@callback(Output("page", "children"), Input("tabs", "value"), Input("source", "value"), Input("minimum", "value"))
-def render(tab: str, source: str, minimum: int):
-    y = yearly[yearly.Source.eq(source)].sort_values("year")
-    s = states[(states.Source.eq(source)) & (states.total_accidents.ge(minimum))].sort_values("severe_rate", ascending=False)
-    c = counties[(counties.Source.eq(source)) & (counties.total_accidents.ge(minimum))].sort_values("severe_rate", ascending=False)
-    total, severe = int(y.total_accidents.sum()), int(y.severe_accidents.sum())
-    rate = 100 * severe / total if total else 0
+@callback(Output("page", "children"), Input("tabs", "value"), Input("minimum", "value"))
+def render(tab: str, minimum: int):
     if tab == "overview":
-        trend = style(px.line(y, x="year", y="severe_rate", markers=True, custom_data=["total_accidents","severe_accidents"]), "Comparable severe-accident rate over time")
-        trend.update_traces(line_color=COLORS["cyan"], hovertemplate="%{x}: %{y:.2f}%<br>Total: %{customdata[0]:,}<br>Severe: %{customdata[1]:,}<extra></extra>")
-        volume = style(px.bar(y, x="year", y=["severe_accidents","total_accidents"], barmode="group", color_discrete_sequence=[COLORS["red"],"#355c85"]), "Reported volume and severe subset")
-        return html.Div([html.Div([card("Comparable records",f"{total/1e6:.2f}M","Selected source and years"),card("Severe records",f"{severe/1e6:.2f}M","Severity levels 3–4","orange"),card("Severe-record rate",f"{rate:.2f}%","Not a crash probability","red"),card("Coverage",f"{int(y.year.min())}–{int(y.year.max())}","Latest year may be partial")],className="kpis"),html.Div([dcc.Graph(figure=trend),dcc.Graph(figure=volume)],className="grid2"),html.Div([html.H3("Decision signal"),html.P("Use stable-source rates to prioritize deeper engineering and exposure-adjusted studies. Never interpret raw state totals as road danger: population, vehicle miles travelled, reporting coverage, and source mix are not controlled here.")],className="insight")])
+        severe_rate = 100 * SEVERE / TOTAL
+        source2_total = int(trend["Total_Accidents"].sum())
+        source2_severe = int(trend["Severe_Accidents"].sum())
+        trend_fig = style(
+            px.line(trend, x="Year", y="Severe_Rate", markers=True, custom_data=["Total_Accidents", "Severe_Accidents"]),
+            "Comparable severe-record rate", "Source2 only • 2016–2022",
+        )
+        trend_fig.update_traces(line_color=COLORS["cyan"], line_width=3,
+            hovertemplate="%{x}: %{y:.2f}%<br>Total %{customdata[0]:,}<br>Severe %{customdata[1]:,}<extra></extra>")
+        impact = severity.melt(id_vars="Severity", value_vars=["Avg_Duration_Min", "Avg_Distance_Mi"], var_name="Metric", value_name="Value")
+        impact_fig = style(px.bar(impact, x="Severity", y="Value", color="Metric", barmode="group",
+            color_discrete_sequence=[COLORS["orange"], COLORS["blue"]]),
+            "Operational impact by severity", "Duration (minutes) and affected distance (miles)")
+        return html.Div([
+            html.Div([
+                card("Reported incidents", f"{TOTAL/1e6:.2f}M", "Complete cleaned dataset"),
+                card("Severe records", f"{SEVERE/1e6:.2f}M", "Traffic-impact levels 3–4", "orange"),
+                card("Overall severe mix", f"{severe_rate:.2f}%", "Descriptive; source-mix affected", "red"),
+                card("Comparable Source2", f"{source2_total/1e6:.2f}M", f"{100*source2_severe/source2_total:.2f}% severe mix"),
+            ], className="kpis"),
+            html.Div([dcc.Graph(figure=trend_fig), dcc.Graph(figure=impact_fig)], className="grid2"),
+            html.Div([html.H3("Executive conclusion"), html.P(
+                "Reporting-source composition is the dominant comparability risk. Source2 shows a decline through 2019 followed by a rebound to 34.46% in 2022. Severity 4 incidents create the longest and widest disruption, making duration and affected distance operational priorities."
+            )], className="insight"),
+        ])
+
     if tab == "geo":
-        top=s.head(15).copy(); top["state_name"]=top.State.map(US_STATES).fillna(top.State)
-        bars=style(px.bar(top.sort_values("severe_rate"),x="severe_rate",y="state_name",orientation="h",color="severe_rate",color_continuous_scale="Tealgrn",custom_data=["total_accidents","ci_low","ci_high"]),f"Highest severe-record rates (n ≥ {minimum:,})")
-        bars.update_traces(hovertemplate="%{y}: %{x:.2f}%<br>n=%{customdata[0]:,}<br>95% CI %{customdata[1]:.2f}–%{customdata[2]:.2f}%<extra></extra>")
-        cols=[{"name":x,"id":x} for x in ["State","County","total_accidents","severe_accidents","severe_rate","ci_low","ci_high"]]
-        return html.Div([html.Div([dcc.Graph(figure=bars),html.Div([html.H3("County investigation queue"),dash_table.DataTable(c.head(25).to_dict("records"),cols,sort_action="native",filter_action="native",page_size=12,style_table={"overflowX":"auto"},style_cell={"backgroundColor":COLORS["panel"],"color":COLORS["text"],"border":"1px solid #20334c","padding":"8px"},style_header={"backgroundColor":"#172a42","fontWeight":"bold"})],className="panel")],className="grid2"),html.Div("Rates are filtered by sample size and include Wilson intervals, but remain descriptive. Join exposure and fatality data before allocating safety funding.",className="callout")])
-    if tab == "risk":
-        heat=temporal.pivot_table(index="day_of_week",columns="hour",values="severe_rate",aggfunc="mean").reindex(["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"])
-        heatfig=style(px.imshow(heat,aspect="auto",color_continuous_scale="YlOrRd",labels={"color":"Severe %"}),"When severe records concentrate")
-        w=weather.sort_values("severe_rate",ascending=False).head(20)
-        weatherfig=style(px.bar(w.sort_values("severe_rate"),x="severe_rate",y="weather_category",color="visibility_band",orientation="h",hover_data=["total_accidents"]),"Weather and visibility risk profile")
-        demo_note = html.Div("Illustrative component preview: run `python -m roadpulse.pipeline` before interpreting these two panels.", className="callout") if IS_DEMO else None
-        return html.Div([demo_note,html.Div([dcc.Graph(figure=heatfig),dcc.Graph(figure=weatherfig)],className="grid2"),html.Div([html.H3("How to act"),html.P("Use the heatmap for patrol and incident-response scheduling, and weather/visibility cuts for targeted warnings. These are associations in reported incidents—not causal effects—and should be validated with traffic exposure.")],className="insight")])
-    source_rates=yearly.groupby("Source",as_index=False)[["total_accidents","severe_accidents"]].sum(); source_rates["severe_rate"]=100*source_rates.severe_accidents/source_rates.total_accidents
-    sf=style(px.bar(source_rates,x="Source",y="severe_rate",color="Source",text_auto=".2f"),"Why naive comparisons fail: severity mix by source")
-    return html.Div([html.Div([card("Raw dataset","7.73M","Reported accidents after cleaning"),card("Source1 severe rate","8.13%","Large mix shift over time"),card("Source2 severe rate","33.92%","Comparison basis","orange"),card("Cramér’s V","0.0416","Weather × severity: weak association")],className="kpis"),dcc.Graph(figure=sf),html.Div([html.H3("Interpretation guardrails"),html.Ul([html.Li("Coverage is not a census; reporting mechanisms, geography, and years differ."),html.Li("Severity means traffic impact (levels 1–4), not injury or fatality severity."),html.Li("2023 contains Source1 only and is partial; exclude it from source-comparable trends."),html.Li("Statistical significance is expected at 7.7M rows; effect size and practical importance matter."),html.Li("No causal or per-driver risk claims without exposure denominators such as VMT.")])],className="insight")])
+        ranked = states[states["Total_Accidents"] >= minimum].sort_values("Severe_Rate", ascending=False)
+        state_fig = style(px.bar(ranked.head(15).sort_values("Severe_Rate"), x="Severe_Rate", y="State", orientation="h",
+            color="Severe_Rate", color_continuous_scale="Tealgrn", custom_data=["Total_Accidents", "Severe_Accidents"]),
+            f"Source2 state investigation priorities (n ≥ {minimum:,})", "Comparable reporting source; rate is not population- or VMT-adjusted")
+        state_fig.update_traces(hovertemplate="%{y}: %{x:.2f}%<br>Total %{customdata[0]:,}<br>Severe %{customdata[1]:,}<extra></extra>")
+        county_volume = counties[counties["Total_Accidents"] >= minimum].nlargest(25, "Total_Accidents")
+        columns = [{"name": x.replace("_", " "), "id": x, "type": "numeric" if x not in {"State", "County"} else "text"}
+                   for x in ["State", "County", "Total_Accidents", "Severe_Accidents", "Severe_Rate"]]
+        return html.Div([
+            html.Div([dcc.Graph(figure=state_fig), html.Div([
+                html.H3("Highest-volume counties"),
+                html.P("All sources • use for workload lookup, not cross-county safety ranking", className="kpi-note"),
+                dash_table.DataTable(county_volume.round(2).to_dict("records"), columns, sort_action="native", filter_action="native",
+                    page_size=12, style_table={"overflowX": "auto"},
+                    style_cell={"backgroundColor": COLORS["panel"], "color": COLORS["text"], "border": "1px solid #20334c", "padding": "8px"},
+                    style_header={"backgroundColor": "#172a42", "fontWeight": "bold"}),
+            ], className="panel")], className="grid2"),
+            html.Div("State rates are Source2-corrected. County output combines sources, so it is deliberately ranked by operational volume rather than severe rate.", className="callout"),
+        ])
+
+    if tab == "conditions":
+        time = temporal.groupby(["DayOfWeek", "Hour"], as_index=False)[["Total_Accidents", "Severe_Accidents"]].sum()
+        time = rate(time)
+        matrix = time.pivot(index="DayOfWeek", columns="Hour", values="Severe_Rate").reindex(DAY_ORDER)
+        heat = style(px.imshow(matrix, aspect="auto", color_continuous_scale="YlOrRd", labels={"color": "Severe %"}),
+            "Reported severe mix by day and hour", "All sources • descriptive scheduling signal")
+        weather = conditions[conditions["Total_Accidents"] >= minimum].sort_values("Severe_Rate", ascending=False).head(18)
+        weather_fig = style(px.bar(weather.sort_values("Severe_Rate"), x="Severe_Rate", y="Weather_Category",
+            color="Visibility_Band", orientation="h", custom_data=["Total_Accidents"]),
+            "Weather and visibility combinations", f"All sources • combinations with n ≥ {minimum:,}")
+        return html.Div([
+            html.Div([dcc.Graph(figure=heat), dcc.Graph(figure=weather_fig)], className="grid2"),
+            html.Div([html.H3("How to use this"), html.P(
+                "These panels support staffing, messaging, and incident-response hypotheses. They do not prove weather or time causes severe outcomes; exposure volume and source composition are not controlled."
+            )], className="insight"),
+        ])
+
+    if tab == "roads":
+        present = road_features[road_features["Present"]].sort_values("Severe_Rate")
+        roads_fig = style(px.bar(present, x="Severe_Rate", y="Feature", orientation="h", color="Total_Accidents",
+            color_continuous_scale="Blues", custom_data=["Total_Accidents", "Severe_Accidents"]),
+            "Severe mix when a road feature is present", "All sources • association, not causal effect")
+        labels = compound.assign(Scenario=lambda x: x["Sunrise_Sunset"] + " • signal=" + x["Traffic_Signal"].astype(str) + " • visibility=" + x["Visibility_Level"])
+        comp_fig = style(px.bar(labels.sort_values("Severe_Rate"), x="Severe_Rate", y="Scenario", orientation="h",
+            color="Total_Accidents", color_continuous_scale="OrRd", custom_data=["Severe_Accidents"]),
+            "Compound operating scenarios", "Day/night × traffic signal × visibility")
+        return html.Div([
+            html.Div([dcc.Graph(figure=roads_fig), dcc.Graph(figure=comp_fig)], className="grid2"),
+            html.Div("Use these combinations to prioritize detailed roadway studies. A lower observed severe mix around a feature may reflect reporting, urban context, speed, or traffic volume—not a protective causal effect.", className="callout"),
+        ])
+
+    source_rates = pd.DataFrame({
+        "Source": ["Source1", "Source2", "Source3"],
+        "Records": [4_325_632, 3_305_373, 97_389],
+        "Severe_Rate": [8.13, 33.92, 31.73],
+    })
+    source_fig = style(px.bar(source_rates, x="Source", y="Severe_Rate", color="Source", text_auto=".2f",
+        custom_data=["Records"]), "Why raw comparisons fail", "Severity mix differs sharply by collection source")
+    return html.Div([
+        html.Div([
+            card("Aggregate tables", "9", "All validated; zero missing rows"),
+            card("Source1 severe mix", "8.13%", "4.33M reported records"),
+            card("Source2 severe mix", "33.92%", "Comparison basis", "orange"),
+            card("Cramér’s V", "0.0416", "Weather association is weak"),
+        ], className="kpis"),
+        dcc.Graph(figure=source_fig),
+        html.Div([html.H3("Interpretation guardrails"), html.Ul([
+            html.Li("Severity is traffic impact, not injury or fatality severity."),
+            html.Li("2023 is partial and contains Source1 only."),
+            html.Li("State comparisons use Source2; other supplied aggregates combine sources."),
+            html.Li("Statistical significance at 7.7M rows does not imply a meaningful effect."),
+            html.Li("No causal or per-driver risk claims without exposure denominators such as VMT."),
+        ])], className="insight"),
+    ])
 
 
 if __name__ == "__main__":
